@@ -2,25 +2,18 @@ import streamlit as st
 from PIL import Image
 from itertools import cycle
 import os
+import urllib.request
+
+# Import the real prediction function
+from predict import predict_step
 
 # --------------------------
 # Sample Images for testing
 # --------------------------
 SAMPLE_IMAGES = {
-    "First": "sample_images/basketball_player.jpg",
-    "Second": "sample_images/dog_sitting_in_tub.jpg",
-    
+    "First": "../sample_images/basketball_player.jpg",
+    "Second": "../sample_images/dog_sitting_in_tub.jpg"
 }
-
-# --------------------------
-# Dummy prediction function
-# --------------------------
-def predict_step(images_list, is_url):
-    # For local testing, return dummy captions
-    captions = []
-    for i, img in enumerate(images_list):
-        captions.append(f"This is a caption for image {i+1}")
-    return captions
 
 # --------------------------
 # Show sample images
@@ -28,10 +21,13 @@ def predict_step(images_list, is_url):
 def show_sample_images():
     cols = cycle(st.columns(3))
     for img_path in SAMPLE_IMAGES.values():
+        if not os.path.exists(img_path):
+            st.warning(f"File not found: {img_path}")
+            continue
         next(cols).image(img_path, width=200)
 
     for i, img_path in enumerate(SAMPLE_IMAGES.values()):
-        if next(cols).button("Predict Caption", key=i):
+        if os.path.exists(img_path) and next(cols).button("Predict Caption", key=i):
             captions = predict_step([img_path], False)
             st.write(f"{i+1}. {captions[0]}")
 
@@ -40,7 +36,11 @@ def show_sample_images():
 # --------------------------
 def image_uploader():
     with st.form("uploader"):
-        images = st.file_uploader("Upload Images", accept_multiple_files=True, type=["png","jpg","jpeg"])
+        images = st.file_uploader(
+            "Upload Images", 
+            accept_multiple_files=True, 
+            type=["png","jpg","jpeg"]
+        )
         submitted = st.form_submit_button("Submit")
         if submitted and images:
             captions = predict_step(images, False)
@@ -67,8 +67,8 @@ def main():
     st.set_page_config(page_title="Image Captioning", page_icon="🖼️")
     st.title("Image Caption Prediction")
     st.header("Welcome to Image Caption Prediction!")
-    st.write("This is a **test app** to make sure Streamlit renders properly.")
-    
+    st.write("Upload an image or use a sample image to get captions.")
+
     # Tabs
     tab1, tab2, tab3 = st.tabs(["Sample Images", "Upload Image", "Image from URL"])
     with tab1:
