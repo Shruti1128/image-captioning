@@ -9,7 +9,7 @@ import os
 SAMPLE_IMAGES = {
     "First": "sample_images/basketball_player.jpg",
     "Second": "sample_images/dog_sitting_in_tub.jpg",
-    "Third": "man_holding_a_flag.jpg"
+    
 }
 
 # --------------------------
