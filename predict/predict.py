@@ -1,48 +1,84 @@
-from transformers import VisionEncoderDecoderModel, ViTFeatureExtractor, AutoTokenizer
-import torch
+import streamlit as st
 from PIL import Image
-import urllib.request
+from itertools import cycle
 import os
+import urllib.request
+import sys
 
-# Load model
-model = VisionEncoderDecoderModel.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
-feature_extractor = ViTFeatureExtractor.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
-tokenizer = AutoTokenizer.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
+# Add parent folder to sys.path so demo.py can find predict.py
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
+from predict import predict_step  # Import the real prediction function
 
-max_length = 16
-num_beams = 4
-gen_kwargs = {"max_length": max_length, "num_beams": num_beams}
+# --------------------------
+# Sample Images for testing
+# --------------------------
+SAMPLE_IMAGES = {
+    "First": "../sample_images/basketball_player.jpg",
+    "Second": "../sample_images/dog_sitting_in_tub.jpg",
+}
 
-def predict_step(images_list, is_url):
-    images = []
-    temp_files = []
+# --------------------------
+# Show sample images
+# --------------------------
+def show_sample_images():
+    cols = cycle(st.columns(3))
+    for img_path in SAMPLE_IMAGES.values():
+        if not os.path.exists(img_path):
+            st.warning(f"File not found: {img_path}")
+            continue
+        next(cols).image(img_path, width=200)
 
-    for idx, image in enumerate(images_list):
-        if is_url:
-            temp_file = f"temp_{idx}.jpg"
-            urllib.request.urlretrieve(image.strip(), temp_file)
-            i_image = Image.open(temp_file)
-            temp_files.append(temp_file)
-        else:
-            i_image = Image.open(image)
+    for i, img_path in enumerate(SAMPLE_IMAGES.values()):
+        if os.path.exists(img_path) and next(cols).button("Predict Caption", key=i):
+            captions = predict_step([img_path], False)
+            st.write(f"{i+1}. {captions[0]}")
 
-        if i_image.mode != "RGB":
-            i_image = i_image.convert(mode="RGB")
+# --------------------------
+# Upload images from computer
+# --------------------------
+def image_uploader():
+    with st.form("uploader"):
+        images = st.file_uploader("Upload Images", accept_multiple_files=True, type=["png","jpg","jpeg"])
+        submitted = st.form_submit_button("Submit")
+        if submitted and images:
+            captions = predict_step(images, False)
+            for i, caption in enumerate(captions):
+                st.write(f"{i+1}. {caption}")
 
-        images.append(i_image)
+# --------------------------
+# Input images via URL
+# --------------------------
+def images_url():
+    with st.form("url"):
+        urls = st.text_input('Enter URLs of Images (comma separated)')
+        submitted = st.form_submit_button("Submit")
+        if submitted and urls:
+            images = urls.split(',')
+            captions = predict_step(images, True)
+            for i, caption in enumerate(captions):
+                st.write(f"{i+1}. {caption}")
 
-    pixel_values = feature_extractor(images=images, return_tensors="pt").pixel_values
-    pixel_values = pixel_values.to(device)
+# --------------------------
+# Main App
+# --------------------------
+def main():
+    st.set_page_config(page_title="Image Captioning", page_icon="🖼️")
+    st.title("Image Caption Prediction")
+    st.header("Welcome to Image Caption Prediction!")
+    st.write("Upload an image or use a sample image to get captions.")
 
-    output_ids = model.generate(pixel_values, **gen_kwargs)
-    preds = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
-    preds = [pred.strip() for pred in preds]
+    # Tabs
+    tab1, tab2, tab3 = st.tabs(["Sample Images", "Upload Image", "Image from URL"])
+    with tab1:
+        show_sample_images()
+    with tab2:
+        image_uploader()
+    with tab3:
+        images_url()
 
-    # Remove temp files
-    for f in temp_files:
-        os.remove(f)
-
-    return preds
+# --------------------------
+# Run App
+# --------------------------
+if __name__ == "__main__":
+    main()
